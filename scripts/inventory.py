@@ -7,7 +7,7 @@ Created on2025.06.04
 
 
 from __future__ import annotations
-from typing import NamedTuple, Callable
+from typing import NamedTuple, Callable, Counter
 import logging
 
 
@@ -133,7 +133,7 @@ class SlotInventory(object):
 
 
     def __init__(self, name: str="Inventory", slot_count: int=10) -> SlotInventory:
-        log.debug(f"creating new SlotInventory '{name}' with {slot_count} slots")
+        log.debug(f"Creating new SlotInventory '{name}' with {slot_count} slots")
         self.name = name
         self.slot_count = slot_count
 
@@ -224,13 +224,91 @@ class SlotInventory(object):
         return count
 
 
+class Inventory(object):
+    name: str
+    contents: Counter
+
+    @property
+    def is_empty(self) -> bool:
+        for item, count in self.contents.items():
+            # the check is probably unnecessary but eh
+            if count > 0:
+                return False
+            else:
+                log.error(f"{self.name} contains {count}x {item}")
+        return True
+
+    @property
+    def mass(self) -> float:
+        result = 0.0
+        for item, count in self.contents.items():
+            result += item.mass * count
+        return result
+
+
+    def __init__(self, name: str="Inventory") -> Inventory:
+        log.debug(f"Creating new Inventory '{name}'")
+        self.name = name
+        self.contents = Counter()
+
+
+    def __repr__(self) -> str:
+        return f"Inventory(name='{self.name}', contents={self.contents})"
+
+
+    def __str__(self, template: str="  {}: {}x {}") -> str:
+        content_list = []
+        for i, (item, count) in enumerate(self.contents.items()):
+            content_list.append(template.format(i + 1, count, item))
+
+        if len(content_list) > 0:
+            contents = "\n".join(content_list)
+        else:
+            contents = "  ~Empty~"
+        return f"{self.name} contents:\n{contents}"
+
+
+    def give(self, item: Item, count: int=1) -> int:
+        """Add Items to the Inventory.
+
+        Return value is how many items were leftover (i.e. how many didn't fit).
+        Returns 0 if all items could fit into the inventory.
+        """
+        log.debug(f"Adding {count}x {item} to '{self.name}'")
+        # this should probably be an if that throws a ValueError,
+        # but this is simpler and works
+        assert count >= 0
+
+        self.contents[item] += count
+        # Compared to SlotInventory, this is comically short
+        return 0
+
+
+    def take(self, item: Item, count: int=1) -> int:
+        log.debug(f"Removing {count}x {item} from '{self.name}'")
+        # this should probably be an if that throws a ValueError,
+        # but this is simpler and works
+        assert count >= 0
+
+        if self.contents[item] >= count:
+            self.contents[item] -= count
+            remainder = 0
+        else:
+            remainder = count - self.contents[item]
+            log.debug(f"Failed to take items from '{self.name}'; {remainder}x {item} missing")
+            self.contents[item] = 0
+
+        if self.contents[item] == 0:
+            del self.contents[item]
+
+        return remainder
+
+
 if __name__ == "__main__":
-    inv = SlotInventory("Test Inventory", 10)
+    inv = Inventory("Test Inventory")
     print(inv, "\n")
 
-    item1 = Item("Apple", 10, 0.125)
+    apple = Item("Apple", 10, 0.125)
 
-    r = inv.give(item1, 17)
-
-    r = inv.give(item1, 21)
+    inv.give(apple, 10)
     print(inv, "\n")
