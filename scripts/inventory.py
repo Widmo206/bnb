@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 class Item(NamedTuple):
     name: str
     stack_size: int
-    mass: int
+    mass: float
 
 
     # __repr__() inherited from NamedTuple
@@ -36,7 +36,7 @@ class ItemStack(object):
     count: int
 
     @property
-    def mass(self) -> int:
+    def mass(self) -> float:
         return self.count * self.item.mass
 
 
@@ -87,6 +87,16 @@ class SlotInventory(object):
                 break
         return result
 
+    @property
+    def mass(self) -> float:
+        result = 0.0
+        for slot in self.slots:
+            if slot is None:
+                continue
+            else:
+                result += slot.mass
+        return result
+
 
     def __repr__(self) -> str:
         return f"SlotInventory(name={self.name}, slot_count={self.slot_count}, slots={repr(self.slots)})"
@@ -109,6 +119,7 @@ class SlotInventory(object):
 
 
     def __init__(self, name: str="Inventory", slot_count: int=10) -> SlotInventory:
+        log.debug(f"creating new SlotInventory \"{name}\" with {slot_count} slots")
         self.name = name
         self.slot_count = slot_count
 
@@ -120,7 +131,9 @@ class SlotInventory(object):
 
     def give(self, item: Item, count: int=1) -> int:
         """Add an Item to the Inventory."""
-        log.debug(f"Adding {count}x {item.name} to SlotInventory")
+        log.debug(f"Adding {count}x {item} to \"{self.name}\"")
+        # this should probably be an if that throws a ValueError,
+        # but this is simpler and works
         assert count >= 0
 
         # Check for partial stacks
@@ -141,8 +154,8 @@ class SlotInventory(object):
                 # different Item
                 continue
 
-
         # Check for empty slots
+        log.debug(f"Failed to fit items into partial stacks, distributing {count}x {item} to empty slots")
         for i, slot in enumerate(self.slots):
             if slot is None:
                 if count > item.stack_size:
@@ -156,6 +169,7 @@ class SlotInventory(object):
                     return 0
 
         # Not enough room to distribute all items
+        log.debug(f"Failed to fit items into \"{self.name}\"; {count}x {item} left over")
         return count
 
 
@@ -163,9 +177,9 @@ if __name__ == "__main__":
     inv = SlotInventory("Test Inventory", 10)
     print(inv, "\n")
 
-    item1 = Item("Item 1", 64, 1)
+    item1 = Item("Apple", 10, 0.125)
 
-    r = inv.give(item1, 100)
+    r = inv.give(item1, 17)
 
-    r = inv.give(item1, 100)
+    r = inv.give(item1, 21)
     print(inv, "\n")
