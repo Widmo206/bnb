@@ -71,6 +71,20 @@ class ItemStack(object):
             return 0
 
 
+    def remove(self, count: int) -> int:
+        assert count >= 0
+
+        if self.count - count >= 0:
+            self.count -= count
+            return 0
+
+        else:
+            remainder = count - self.count
+            log.debug(f"Can't take {count}x {self.item} from a stack of {self.count}; pulling {remainder} from next available slot")
+            self.count = 0
+            return remainder
+
+
 class SlotInventory(object):
     name: str
     slot_count: int
@@ -99,7 +113,7 @@ class SlotInventory(object):
 
 
     def __repr__(self) -> str:
-        return f"SlotInventory(name={self.name}, slot_count={self.slot_count}, slots={repr(self.slots)})"
+        return f"SlotInventory(name='{self.name}', slot_count={self.slot_count}, slots={repr(self.slots)})"
 
 
     def __str__(self, template: str="  {}: {}") -> str:
@@ -119,7 +133,7 @@ class SlotInventory(object):
 
 
     def __init__(self, name: str="Inventory", slot_count: int=10) -> SlotInventory:
-        log.debug(f"creating new SlotInventory \"{name}\" with {slot_count} slots")
+        log.debug(f"creating new SlotInventory '{name}' with {slot_count} slots")
         self.name = name
         self.slot_count = slot_count
 
@@ -130,8 +144,12 @@ class SlotInventory(object):
 
 
     def give(self, item: Item, count: int=1) -> int:
-        """Add an Item to the Inventory."""
-        log.debug(f"Adding {count}x {item} to \"{self.name}\"")
+        """Add Items to the Inventory.
+
+        Return value is how many items were leftover (i.e. how many didn't fit).
+        Returns 0 if all items could fit into the inventory.
+        """
+        log.debug(f"Adding {count}x {item} to '{self.name}'")
         # this should probably be an if that throws a ValueError,
         # but this is simpler and works
         assert count >= 0
@@ -142,7 +160,7 @@ class SlotInventory(object):
                 # empty stack
                 continue
 
-            if slot.item == item:
+            elif slot.item == item:
                 count = slot.add(count)
                 if count == 0:
                     # No overflow; everything could fit into this stack
@@ -169,7 +187,40 @@ class SlotInventory(object):
                     return 0
 
         # Not enough room to distribute all items
-        log.debug(f"Failed to fit items into \"{self.name}\"; {count}x {item} left over")
+        log.debug(f"Failed to fit items into '{self.name}'; {count}x {item} left over")
+        return count
+
+
+    def take(self, item: Item, count: int=1) -> int:
+        log.debug(f"Removing {count}x {item} from '{self.name}'")
+        # this should probably be an if that throws a ValueError,
+        # but this is simpler and works
+        assert count >= 0
+
+        for index, slot in enumerate(reversed(self.slots)):
+            if slot is None:
+                # empty stack
+                continue
+
+            elif slot.item == item:
+                slot_id = self.slot_count - index - 1
+                count = slot.remove(count)
+                if slot.count == 0:
+                    log.debug(f"Stack in slot {slot_id} of '{self.name}' is empty; removing")
+                    self.slots[slot_id] = None
+
+                if count == 0:
+                    # No underflow; everything could be taken from this slot
+                    return 0
+                else:
+                    # Stack underflowed; take remainder from other slots
+                    continue
+            else:
+                # different Item
+                continue
+
+        # Not enough items to tak everything
+        log.debug(f"Failed to take items from '{self.name}'; {count}x {item} missing")
         return count
 
 
