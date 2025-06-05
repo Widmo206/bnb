@@ -11,7 +11,10 @@ from typing import NamedTuple, Callable
 import logging
 
 
-logging.basicConfig(filename='../logs/latest.log', encoding='utf-8', level=logging.DEBUG)
+# Needed because the logger doesn't clear the log file, despite being explicitly set to "wt"
+with open('../logs/latest.log', "w"):
+    pass
+logging.basicConfig(filename='../logs/latest.log', filemode="wt", encoding='utf-8', level=logging.DEBUG)
 log = logging.getLogger(__name__)
 # log.setLevel(logging.DEBUG)
 
@@ -22,6 +25,12 @@ class Item(NamedTuple):
     mass: int
 
 
+    # __repr__() inherited from NamedTuple
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class ItemStack(object):
     item: Item
     count: int
@@ -29,6 +38,14 @@ class ItemStack(object):
     @property
     def mass(self) -> int:
         return self.count * self.item.mass
+
+
+    def __repr__(self) -> str:
+        return f"ItemStack({self.count}, {repr(self.item)})"
+
+
+    def __str__(self) -> str:
+        return f"{self.count}x {str(self.item)}"
 
 
     def __init__(self, item: Item, count: int=1) -> ItemStack:
@@ -46,8 +63,8 @@ class ItemStack(object):
         if self.count + count > self.item.stack_size:
             # (Item)Stack Overflow :)
             remainder = self.count + count - self.item.stack_size
+            log.debug(f"Can't add {count}x {self.item} to a stack of {self.count}; pushing {remainder} to next available slot")
             self.count = self.item.stack_size
-            # TODO: add logging for item overflow
             return remainder
         else:
             self.count += count
@@ -55,6 +72,7 @@ class ItemStack(object):
 
 
 class SlotInventory(object):
+    name: str
     slot_count: int
     slots: list[ItemStack | None]
 
@@ -70,7 +88,28 @@ class SlotInventory(object):
         return result
 
 
-    def __init__(self, slot_count) -> SlotInventory:
+    def __repr__(self) -> str:
+        return f"SlotInventory(name={self.name}, slot_count={self.slot_count}, slots={repr(self.slots)})"
+
+
+    def __str__(self, template: str="  {}: {}") -> str:
+        content_list = []
+        for i, slot in enumerate(self.slots):
+            if slot is None:
+                continue
+            else:
+                content_list.append(template.format(i + 1, slot))
+
+        if len(content_list) > 0:
+            contents = "\n".join(content_list)
+        else:
+            contents = "  ~Empty~"
+        return f"{self.name} contents:\n{contents}\n  ({self.slot_count} slots)"
+
+
+
+    def __init__(self, name: str="Inventory", slot_count: int=10) -> SlotInventory:
+        self.name = name
         self.slot_count = slot_count
 
         slots = []
@@ -120,28 +159,13 @@ class SlotInventory(object):
         return count
 
 
-    def list_items(self, template: str="{}: {}x {}") -> None:
-        if self.is_empty:
-            result = "~Empty~"
-        else:
-            stacks = []
-            for i, slot in enumerate(self.slots):
-                if slot is None:
-                    continue
-                else:
-                    stacks.append(template.format(i, slot.count, slot.item.name))
-            result = "\n".join(stacks)
-
-        print(result)
-
-
 if __name__ == "__main__":
-    inv = SlotInventory(10)
-    inv.list_items()
+    inv = SlotInventory("Test Inventory", 10)
+    print(inv, "\n")
 
     item1 = Item("Item 1", 64, 1)
 
     r = inv.give(item1, 100)
 
     r = inv.give(item1, 100)
-    inv.list_items()
+    print(inv, "\n")
