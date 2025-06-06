@@ -76,13 +76,16 @@ class ItemStack(object):
 
         if self.count - count >= 0:
             self.count -= count
-            return 0
+            remainder = 0
+            removed = count
 
         else:
+            removed = self.count
             remainder = count - self.count
-            log.debug(f"Can't take {count}x {self.item} from a stack of {self.count}; pulling {remainder} from next available slot")
+            log.debug(f"Can't remove {count}x {self.item} from a stack of {self.count}; pulling {remainder} from next available slot")
             self.count = 0
-            return remainder
+
+        return removed
 
 
 class SlotInventory(object):
@@ -130,7 +133,8 @@ class SlotInventory(object):
             contents = "\n".join(content_list)
         else:
             contents = "  ~Empty~"
-        return f"{self.name} contents:\n{contents}\n  ({self.slot_count} slots)"
+
+        return f"{self.name} contents:\n{contents}\n  ({len(content_list)}/{self.slot_count})"
 
 
 
@@ -198,6 +202,7 @@ class SlotInventory(object):
         # this should probably be an if that throws a ValueError,
         # but this is simpler and works
         assert count >= 0
+        taken = 0
 
         for index, slot in enumerate(reversed(self.slots)):
             if slot is None:
@@ -206,14 +211,15 @@ class SlotInventory(object):
 
             elif slot.item == item:
                 slot_id = self.slot_count - index - 1
-                count = slot.remove(count)
+                removed = slot.remove(count-taken)
+                taken += removed
                 if slot.count == 0:
                     log.debug(f"Stack in slot {slot_id} of '{self.name}' is empty; removing")
                     self.slots[slot_id] = None
 
-                if count == 0:
+                if taken == count:
                     # No underflow; everything could be taken from this slot
-                    return 0
+                    return taken
                 else:
                     # Stack underflowed; take remainder from other slots
                     continue
@@ -222,8 +228,62 @@ class SlotInventory(object):
                 continue
 
         # Not enough items to tak everything
-        log.debug(f"Failed to take items from '{self.name}'; {count}x {item} missing")
-        return count
+        log.debug(f"Failed to take items from '{self.name}'; {count-taken}x {item} missing")
+        return taken
+
+
+    def contains(self, item: Item, count: int=1) -> bool:
+        """Check if the given Inventory has the specified amount of an item.
+
+        Useful when you want an action to be performed *only* if a sufficient
+        quantity of an Item is present.
+        """
+        amount = 0
+        for slot in self.slots:
+            if slot is None:
+                # empty stack
+                continue
+
+            elif slot.item == item:
+                amount += slot.count
+                if amount >= count:
+                    return True
+            else:
+                continue
+        return False
+
+
+    def has_space_for(self, item: Item, count: int) -> bool:
+        """Check if the given SlotInventory can accept x amount of an Item."""
+        available_space = 0
+
+        for slot in self.slots:
+            if slot is None:
+                available_space += item.stack_size
+
+            elif slot.item == item:
+                available_space += item.stack_size - slot.count
+
+            else:
+                pass
+            if available_space >= count:
+                return True
+
+        return False
+
+
+    def transfer(self, target: Inventory, item: Item, count: int=1) -> None:
+        log.debug(f"Transfering {count}x {item} from '{self.name}' to '{target.name}'")
+
+        actual_count = self.take(item, count)
+        if actual_count < count:
+            log.debug(f"Transfer issue: '{self.name}' only contained {actual_count}x {item} ")
+
+        if actual_count > 0:
+            overflow = target.give(item, actual_count)
+            if overflow > 0:
+                log.debug(f"Transfer issue: '{target.name}' could only accept {actual_count-overflow}x {item}; {overflow} returned to '{self.name}'")
+                self.give(item, overflow)
 
 
 class Inventory(object):
@@ -328,8 +388,8 @@ class Inventory(object):
 
 
 
-    def has_enough(self, item: Item, count: int) -> bool:
-        """Check if the given Inventory has enough of an item.
+    def contains(self, item: Item, count: int=1) -> bool:
+        """Check if the given Inventory has the specified amount of an item.
 
         Useful when you want an action to be performed *only* if a sufficient
         quantity of an Item is present.
@@ -359,3 +419,7 @@ if __name__ == "__main__":
 
     bag = Inventory("Bag")
     print(bag, "\n")
+
+    box = SlotInventory("Box", 10)
+    box.give(apple, 30)
+    print(box)
