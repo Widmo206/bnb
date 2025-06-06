@@ -8,6 +8,7 @@ Created on2025.06.04
 
 from __future__ import annotations
 from typing import NamedTuple, Callable, Counter
+from uuid import UUID, uuid4
 import logging
 
 
@@ -19,10 +20,59 @@ log = logging.getLogger(__name__)
 # log.setLevel(logging.DEBUG)
 
 
+class InventoryNotFoundError(KeyError):
+    """Raised when referencing a non-existant or deleted inventory."""
+    pass
+
+
+class InventoryHandler(NamedTuple):
+    """Stores inventories on behalf of immutable objects (like Items)."""
+    inventories: dict[UUID, Inventory | SlotInventory]
+
+
+    @staticmethod
+    def _init() -> InventoryHandler:
+        inventories = {}
+
+        return InventoryHandler(inventories)
+
+
+    def add(self, inventory: Inventory | SlotInventory) -> UUID:
+        """Add an inventory to the handler."""
+        reference_id = uuid4()
+
+        self.inventories[reference_id] = inventory
+
+        return reference_id
+
+
+    def get(self, reference_id) -> Inventory | SlotInventory:
+        """Return the inventory stored under the given reference."""
+        if reference_id in self.inventories.keys():
+            return self.inventories[reference_id]
+        else:
+            raise InventoryNotFoundError(f"Could not find inventory with UUID {reference_id}")
+
+
+    def remove(self, reference_id) -> None:
+        """Add an inventory from the handler."""
+        log.debug(f"Deleting reference to '{self.get(reference_id).name}' for {reference_id}")
+        del self.inventories[reference_id]
+
+
+
 class Item(NamedTuple):
     name: str
     stack_size: int
-    mass: float
+    base_mass: float
+
+    @property
+    def mass(self) -> float:
+        """Returns the mass of the item.
+
+        For simple items, it's just the base mass. For containers, it's base mass + mass of the contents.
+        """
+        return self.base_mass
 
 
     # __repr__() inherited from NamedTuple
@@ -31,12 +81,28 @@ class Item(NamedTuple):
         return self.name
 
 
+class ContainerItem(Item):
+    """An item with an inventory."""
+    inventory_id: UUID
+
+    @property
+    def inventory(self) -> Inventory | SlotInventory:
+        """Fetch the Item's associated inventory."""
+        global inventory_handler
+
+        return inventory_handler.get(self.inventory_id)
+
+
 class ItemStack(object):
     item: Item
     count: int
 
     @property
     def mass(self) -> float:
+        """Calculate the mass of the ItemStack
+
+        mass = count * item.mass
+        """
         return self.count * self.item.mass
 
 
