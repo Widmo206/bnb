@@ -92,6 +92,7 @@ class SlotInventory(object):
 
     @property
     def is_empty(self) -> bool:
+        """Check if the Inventory is empty."""
         result = True
         for slot in self.slots:
             if slot is None:
@@ -103,6 +104,7 @@ class SlotInventory(object):
 
     @property
     def mass(self) -> float:
+        """Tally up the mass of contained Items."""
         result = 0.0
         for slot in self.slots:
             if slot is None:
@@ -230,6 +232,7 @@ class Inventory(object):
 
     @property
     def is_empty(self) -> bool:
+        """Check if the Inventory is empty."""
         for item, count in self.contents.items():
             # the check is probably unnecessary but eh
             if count > 0:
@@ -240,6 +243,7 @@ class Inventory(object):
 
     @property
     def mass(self) -> float:
+        """Tally up the mass of contained Items."""
         result = 0.0
         for item, count in self.contents.items():
             result += item.mass * count
@@ -259,6 +263,7 @@ class Inventory(object):
     def __str__(self, template: str="  {}: {}x {}") -> str:
         content_list = []
         for i, (item, count) in enumerate(self.contents.items()):
+            # TODO add padding
             content_list.append(template.format(i + 1, count, item))
 
         if len(content_list) > 0:
@@ -285,6 +290,7 @@ class Inventory(object):
 
 
     def take(self, item: Item, count: int=1) -> int:
+        """Remove items from the inventory and return how many were removed."""
         log.debug(f"Removing {count}x {item} from '{self.name}'")
         # this should probably be an if that throws a ValueError,
         # but this is simpler and works
@@ -293,7 +299,9 @@ class Inventory(object):
         if self.contents[item] >= count:
             self.contents[item] -= count
             remainder = 0
+            taken = count
         else:
+            taken = self.contents[item]
             remainder = count - self.contents[item]
             log.debug(f"Failed to take items from '{self.name}'; {remainder}x {item} missing")
             self.contents[item] = 0
@@ -301,14 +309,53 @@ class Inventory(object):
         if self.contents[item] == 0:
             del self.contents[item]
 
-        return remainder
+        return taken
+        # return remainder
+
+
+    def transfer(self, target: Inventory, item: Item, count: int=1) -> None:
+        log.debug(f"Transfering {count}x {item} from '{self.name}' to '{target.name}'")
+
+        actual_count = self.take(item, count)
+        if actual_count < count:
+            log.debug(f"Transfer issue: '{self.name}' only contained {actual_count}x {item} ")
+
+        if actual_count > 0:
+            overflow = target.give(item, actual_count)
+            if overflow > 0:
+                log.debug(f"Transfer issue: '{target.name}' could only accept {actual_count-overflow}x {item}; {overflow} returned to '{self.name}'")
+                self.give(item, overflow)
+
+
+
+    def has_enough(self, item: Item, count: int) -> bool:
+        """Check if the given Inventory has enough of an item.
+
+        Useful when you want an action to be performed *only* if a sufficient
+        quantity of an Item is present.
+        """
+        return self.contents[item] >= count
+
+
+    def has_space_for(self, item: Item, count: int) -> bool:
+        """Check if the given Inventory can accept x amount of an Item.
+
+        Not really needed for a slotless Inventory, but will make some logic
+        simpler when mixing inventory types.
+        """
+        # kinda pointless for a slotless Inventory, but will be needed for
+        # SlotInventory, so might as well have it here so I don't need separate
+        # logic for slotted and slotless inventories
+        return True
 
 
 if __name__ == "__main__":
     inv = Inventory("Test Inventory")
-    print(inv, "\n")
 
     apple = Item("Apple", 10, 0.125)
 
-    inv.give(apple, 10)
+    inv.give(apple, 20)
     print(inv, "\n")
+
+    bag = Inventory("Bag")
+    print(bag, "\n")
