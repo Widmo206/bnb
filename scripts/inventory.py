@@ -8,6 +8,7 @@ Created on2025.06.04
 
 from __future__ import annotations
 from typing import NamedTuple, Callable, Counter
+from types import MappingProxyType
 from uuid import UUID, uuid4
 import logging
 
@@ -23,6 +24,50 @@ log = logging.getLogger(__name__)
 class InventoryNotFoundError(KeyError):
     """Raised when referencing a non-existant or deleted inventory."""
     pass
+
+
+class InventoryInterface(object):
+    """Contains methods allowing the player to interact with an inventory."""
+    inventory: Inventory | SlotInventory
+    # I could have had a tuple for commands and a tuple for the names, but
+    # this seems less error-prone (I can't mess up the indeces because they're
+    # one element)
+    actions: tuple[(str, Callable)]
+
+
+    def __init__(self, inventory: Inventory | SlotInventory):
+        self.inventory = inventory
+        self.actions = (
+        # ("Command Name", self.command),
+        # TODO
+        ("Back", NotImplemented),
+        ("List Contents", self.list_items),
+
+        )
+
+
+    def list_items(self) -> None:
+        """Print the inventory's contents to the console."""
+        print(self.inventory.__str__())
+
+
+    def list_actions(self, template: str="  {}: {}") -> None:
+        """Lists the available actions regarding the given inventory."""
+        # probably not needed
+        assert len(self.actions) > 0
+
+        result = "Available actions:"
+
+        for i, (action_name, action) in enumerate(self.actions):
+            result += "\n" + template.format(i, action_name)
+
+        print(result)
+
+
+
+
+
+
 
 
 class InventoryHandler(NamedTuple):
