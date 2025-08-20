@@ -21,6 +21,22 @@ log = logging.getLogger(__name__)
 # log.setLevel(logging.DEBUG)
 
 
+def main():
+    inv = Inventory("Test Inventory")
+
+    apple = Item("Apple", 10, 0.125)
+
+    inv.give(apple, 20)
+    print(inv, "\n")
+
+    bag = Inventory("Bag")
+    print(bag, "\n")
+
+    box = SlotInventory("Box", 10)
+    box.give(apple, 30)
+    print(box)
+
+
 class InventoryNotFoundError(KeyError):
     """Raised when referencing a non-existant or deleted inventory."""
     pass
@@ -521,16 +537,4 @@ class Inventory(object):
 
 
 if __name__ == "__main__":
-    inv = Inventory("Test Inventory")
-
-    apple = Item("Apple", 10, 0.125)
-
-    inv.give(apple, 20)
-    print(inv, "\n")
-
-    bag = Inventory("Bag")
-    print(bag, "\n")
-
-    box = SlotInventory("Box", 10)
-    box.give(apple, 30)
-    print(box)
+    main()
