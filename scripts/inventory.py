@@ -85,6 +85,30 @@ class InventoryInterface(object):
         self.get_user_action()()
 
 
+    def get_inventories(self) -> list[UUID]:
+        inventories = self.inventory_handler.list_ids()
+        inventories.remove(self.inventory_id)
+
+        return inventories
+
+
+    def printlist(data: list | tuple, header: str="Data:", start_offset: int=1,
+                  _filter: Callable=lambda d: True,
+                  processor: Callable=None, template: str="  {}: {}") -> None:
+
+        result = ""
+        for i, entry in enumerate(data):
+            if not _filter(entry):
+                continue
+            if processor is not None:
+                processed_entry = processor(entry)
+            else:
+                processed_entry = entry
+
+            result += "\n" + template.format(i + start_offset, processed_entry)
+
+
+
     def list_inventories(self, template: str="  {}: {}") -> None:
         inventories = self.inventory_handler.list_ids()
         inventories.remove(self.inventory_id)
