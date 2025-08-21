@@ -11,6 +11,7 @@ from typing import NamedTuple, Callable, Counter
 from types import MappingProxyType
 from uuid import UUID, uuid4
 import logging
+from get_input import get_input
 
 
 # Needed because the logger doesn't clear the log file, despite being explicitly set to "wt"
@@ -22,19 +23,7 @@ log = logging.getLogger(__name__)
 
 
 def main():
-    inv = Inventory("Test Inventory")
-
-    apple = Item("Apple", 10, 0.125)
-
-    inv.give(apple, 20)
-    print(inv, "\n")
-
-    bag = Inventory("Bag")
-    print(bag, "\n")
-
-    box = SlotInventory("Box", 10)
-    box.give(apple, 30)
-    print(box)
+    ...
 
 
 class InventoryNotFoundError(KeyError):
@@ -45,19 +34,24 @@ class InventoryNotFoundError(KeyError):
 class InventoryInterface(object):
     """Contains methods allowing the player to interact with an inventory."""
     inventory: Inventory | SlotInventory
+    inventory_id: UUID
+    inventory_handler: InventoryHandler
     # I could have had a tuple for commands and a tuple for the names, but
     # this seems less error-prone (I can't mess up the indeces because they're
     # one element)
     actions: tuple[(str, Callable)]
 
 
-    def __init__(self, inventory: Inventory | SlotInventory):
-        self.inventory = inventory
+    def __init__(self, inventory_handler: InventoryHandler, inventory_id: UUID):
+        self.inventory_handler = inventory_handler
+        self.inventory_id = inventory_id
+        self.inventory = inventory_handler.get(inventory_id)
         self.actions = (
         # ("Command Name", self.command),
         # TODO
         ("Back", NotImplemented),
         ("List Contents", self.list_items),
+        ("Transfer Items", self.transfer),
 
         )
 
@@ -78,6 +72,41 @@ class InventoryInterface(object):
             result += "\n" + template.format(i, action_name)
 
         print(result)
+
+
+    def get_user_action(self) -> Callable:
+        choice_index = get_input(int, True, (0, len(self.actions) - 1))
+
+        return self.actions[choice_index][1]
+
+
+    def open(self) -> None:
+        self.list_actions()
+        self.get_user_action()()
+
+
+    def list_inventories(self, template: str="  {}: {}") -> None:
+        inventories = self.inventory_handler.list_ids()
+        inventories.remove(self.inventory_id)
+
+        result = "Accessible inventories:"
+
+        for i, uuid in enumerate(inventories):
+            result += "\n" + template.format(i + 1, self.inventory_handler.get(uuid).name)
+
+        print(result)
+
+
+    def transfer(self) -> None:
+        self.list_items()
+
+        # TODO: implement occupied_slots() for both inv types
+
+        self.list_inventories()
+
+        #TODO: implement choosing inventory
+
+
 
 
 
@@ -119,6 +148,10 @@ class InventoryHandler(NamedTuple):
         """Add an inventory from the handler."""
         log.debug(f"Deleting reference to '{self.get(reference_id).name}' for {reference_id}")
         del self.inventories[reference_id]
+
+
+    def list_ids(self) -> list[UUID]:
+        return list(self.inventories.keys())
 
 
 
@@ -537,4 +570,24 @@ class Inventory(object):
 
 
 if __name__ == "__main__":
+    inv = Inventory("Test Inventory")
+
+    IH = InventoryHandler._init()
+    inv_id = IH.add(inv)
+    inv_if = InventoryInterface(IH, inv_id)
+
+    apple = Item("Apple", 10, 0.125)
+
+    inv.give(apple, 20)
+    print(inv, "\n")
+
+    bag = Inventory("Bag")
+    bag_id = IH.add(bag)
+    print(bag, "\n")
+
+    box = SlotInventory("Box", 10)
+    box.give(apple, 30)
+    box_id = IH.add(box)
+    print(box)
+
     main()
