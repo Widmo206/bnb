@@ -7,8 +7,8 @@ Created on2025.06.04
 
 
 from __future__ import annotations
-from typing import NamedTuple, Callable, Counter
-from types import MappingProxyType
+from typing import NamedTuple, Callable, Counter, Collection
+# from types import MappingProxyType
 from uuid import UUID, uuid4
 import logging
 from get_input import get_input
@@ -24,6 +24,36 @@ log = logging.getLogger(__name__)
 
 def main():
     ...
+
+
+def print_list(lst: Collection, offset: int=0, _filter: Callable=None, processor: Callable=None,
+               header: str=None, template: str="  {}: {}", empty: str="  ~Empty~") -> None:
+    if _filter is None:
+        _filter = lambda x: True
+
+    if processor is None:
+        processor = lambda x: str(x)
+
+    if header is None:
+        result = ""
+    else:
+        result = "\n" + header
+
+    if len(lst) > 0:
+        for i, item in enumerate(lst):
+            if not _filter(item):
+                continue
+
+            result += "\n" + template.format(i + offset, processor(item))
+    else:
+        result += "\n" + empty
+
+    print(result)
+
+
+
+
+
 
 
 class InventoryNotFoundError(KeyError):
@@ -175,7 +205,29 @@ class InventoryHandler(NamedTuple):
 
 
     def list_ids(self) -> list[UUID]:
+        """Return a list of UUIDs for all inventories registered in this InventoryHandler."""
         return list(self.inventories.keys())
+
+
+    def open(self, reference_id) -> None:
+        """Open the specified inventory in an InventoryInterface."""
+        interface = InventoryInterface(self, reference_id)
+
+        interface.open()
+
+
+    def _choose_inv(self) -> None:
+        inventory_ids = self.list_ids()
+        print_list(inventory_ids, offset=1, processor=lambda i: self.get(i).name,
+                   header="Available inventories:")
+        if len(inventory_ids) <= 0:
+            return
+        choice = get_input(int, True, (1, len(inventory_ids)))
+
+        inventory_id = inventory_ids[choice - 1]
+        interface = InventoryInterface(self, inventory_id)
+
+        interface.open()
 
 
 
@@ -613,5 +665,7 @@ if __name__ == "__main__":
     box.give(apple, 30)
     box_id = IH.add(box)
     print(box)
+
+    IH._choose_inv()
 
     main()
